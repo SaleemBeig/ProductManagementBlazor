@@ -1,0 +1,11 @@
+﻿.total-price {
+    /*display: flex;*/
+  /*  justify-content: right;*/
+    color: blue;
+}
+
+.confirm-button {
+    display: flex;
+    justify-content: right;
+    padding-top: 20px;
+}

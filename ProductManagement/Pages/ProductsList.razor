@@ -1,0 +1,113 @@
+﻿@page "/ProductsList"
+@using System.Text.Json
+@using System.Text.Json.Serialization;
+@inject IHttpClientFactory ClientFactory
+@using ProductManagement.Data;
+@using  ProductManagement.Services
+@using MudBlazor
+@inject ISnackbar Snackbar
+<h3>Products</h3>
+@inject ICartService cartService
+@inject IProductService productService
+
+
+<MudTable ServerData="@(new Func<TableState, Task<TableData<Product>>>(ServerReload))"
+          Dense="true" Hover="true" @ref="table" Striped="true">
+    <ToolBarContent>
+         <MudSpacer />
+        <MudTextField T="string" ValueChanged="@(s=>OnSearch(s))" Placeholder="Search" Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh><MudTableSortLabel SortLabel="title" T="Product">Title</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortLabel="price" T="Product">Price</MudTableSortLabel></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="title">@context.title</MudTd>
+        <MudTd DataLabel="price">@context.price</MudTd>
+        <MudTd DataLabel=""><MudFab Color="Color.Primary" Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Small" IconSize="Size.Small" Label="To cart" Class="ma-2" @onclick="() => AddProductToOrder(context)" /></MudTd>
+        
+    </RowTemplate>
+
+    <NoRecordsContent>
+        <MudText>No matching records found</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>Loading...</MudText>
+    </LoadingContent>
+    <PagerContent>
+        <MudTablePager PageSizeOptions="pageSizeOptions" RowsPerPageString="Rows per page"/>
+    </PagerContent>
+</MudTable>
+
+    @code {
+        private int[] pageSizeOptions = new int[] { 15,20,30 };
+        private List<Product> pagedData;
+        private MudTable<Product> table;
+
+        private int totalItems;
+        private string searchString = null;
+        private List<Product> Products = null;
+        private bool getBranchesError;
+        private bool shouldRender;
+
+        /// <summary>
+        /// Here we simulate getting the paged, filtered and ordered data from the server
+        /// </summary>
+        private async Task<TableData<Product>> ServerReload(TableState state)
+        {
+            Products = await productService.GetAllProductsAsync();
+            Products = Products.Where(element =>
+            {
+                if (string.IsNullOrWhiteSpace(searchString))
+                    return true;
+                if (element.title.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                if ($"{element.price} {element.price} {element.price}".Contains(searchString))
+                    return true;
+                return false;
+            }).ToList();
+            totalItems = Products.Count();
+            switch (state.SortLabel)
+            {
+                case "title":
+                    Products = Products.OrderByDirection(state.SortDirection, o => o.title).ToList();
+                    break;
+                case "price":
+                    Products = Products.OrderByDirection(state.SortDirection, o => o.price).ToList();
+                    break;
+
+            }
+           if( state.PageSize== 10)
+              state.PageSize = 15;
+            pagedData = Products.Skip(state.Page * state.PageSize).Take(state.PageSize).ToList();
+            return new TableData<Product>() { TotalItems = totalItems, Items = pagedData };
+        }
+
+        private void OnSearch(string text)
+        {
+            searchString = text;
+            table.ReloadServerData();
+        }
+
+
+        private void AddProductToOrder(Product product)
+        {
+            Snackbar.Add("Item Added to the Cart Successfully.", Severity.Success, config => { config.ShowCloseIcon = false; });
+            cartService.AddProductToCart(product);
+
+
+        }
+        public string Filter { get; set; }
+
+        public bool IsVisible(Product product)
+        {
+            if (string.IsNullOrEmpty(Filter))
+                return true;
+
+            if (product.title.Contains(Filter, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return false;
+        }
+    }

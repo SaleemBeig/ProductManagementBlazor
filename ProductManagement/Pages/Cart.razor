@@ -1,0 +1,117 @@
+﻿@page "/Cart"
+@inject IHttpClientFactory ClientFactory
+@using ProductManagement.Data;
+@using  ProductManagement.Services
+@using ProductManagement.Dtos
+@using System.Net.Http.Json
+@inject ICartService cartService
+@inject ISnackbar Snackbar
+@inject HttpClient httpClient
+@inject NavigationManager NavigationManager 
+
+
+
+<MudTable ServerData="@(new Func<TableState, Task<TableData<CartItemDto>>>(ServerReload))"
+          Dense="true" Hover="true" Striped="true" @ref="table">
+    <ToolBarContent>
+        <MudText Typo="Typo.h6">Cart Items</MudText>
+        <MudSpacer />
+        @*<MudTextField T="string" ValueChanged="@(s=>OnSearch(s))" Placeholder="Search" Adornment="Adornment.Start"
+            AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>*@
+    </ToolBarContent>
+    <HeaderContent>
+        <MudTh><MudTableSortLabel SortLabel="ProductTitle" T="CartItemDto">Title</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortLabel="Price" T="CartItemDto">Price</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortLabel="Quantity" T="CartItemDto">Quantity</MudTableSortLabel></MudTh>
+        <MudTh><MudTableSortLabel SortLabel="TotalPrice" T="CartItemDto">TotalPrice</MudTableSortLabel></MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="ProductTitle">@context.ProductTitle</MudTd>
+        <MudTd DataLabel="Price">@context.Price</MudTd>
+        <MudTd DataLabel="Quantity">@context.Quantity</MudTd>
+        <MudTd DataLabel="TotalPrice">@context.TotalPrice</MudTd>
+
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>No matching records found</MudText>
+    </NoRecordsContent>
+    <LoadingContent>
+        <MudText>Loading...</MudText>
+    </LoadingContent>
+    <FooterContent>
+        <MudTd></MudTd>
+        <MudTd></MudTd>
+        <MudTd Style="color:blue;font-weight:bold">Total Price of the order</MudTd>
+        <MudTd Style="color:blue;font-weight:bold">@GetTotalOrderPrice()</MudTd>
+    </FooterContent>
+
+</MudTable>
+<MudSpacer />
+<div class="confirm-button">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" @onclick="ConfirmOrder">Confirm Order</MudButton>
+</div>
+
+@code {
+    private List<CartItemDto> pagedData;
+    private MudTable<CartItemDto> table;
+
+
+    private int totalItems;
+    private string searchString = null;
+    private List<CartItemDto> orderItems = null;
+    private bool getBranchesError;
+    private bool shouldRender;
+
+    /// <summary>
+    /// Here we simulate getting the paged, filtered and ordered data from the server
+    /// </summary>
+    private async Task<TableData<CartItemDto>> ServerReload(TableState state)
+    {
+        orderItems = await cartService.GetAllOrderItemsAsync();
+        orderItems = orderItems.Where(element =>
+        {
+            if (string.IsNullOrWhiteSpace(searchString))
+                return true;
+            if (element.ProductTitle.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+                return true;
+            if ($"{element.Price} {element.Price} {element.Price}".Contains(searchString))
+                return true;
+            return false;
+        }).ToList();
+        totalItems = orderItems.Count();
+        switch (state.SortLabel)
+        {
+            case "ProductTitle":
+                orderItems = orderItems.OrderByDirection(state.SortDirection, o => o.ProductTitle).ToList();
+                break;
+            case "Price":
+                orderItems = orderItems.OrderByDirection(state.SortDirection, o => o.Price).ToList();
+                break;
+
+        }
+
+        pagedData = orderItems.Skip(state.Page * state.PageSize).Take(state.PageSize).ToList();
+        return new TableData<CartItemDto>() { TotalItems = totalItems, Items = pagedData };
+    }
+
+    private void OnSearch(string text)
+    {
+        searchString = text;
+        table.ReloadServerData();
+    }
+    private string GetTotalOrderPrice()
+    {
+        if (orderItems != null)
+            return orderItems.Sum(cartItem => cartItem.TotalPrice).ToString("0.00");
+
+        return string.Empty;
+    }
+
+    private async void ConfirmOrder()
+    {
+        await cartService.ConfirmOrder();
+        Snackbar.Add("Order has been submitted Successfully.", Severity.Success, config => { config.ShowCloseIcon = false; });
+        NavigationManager.NavigateTo("/Cart", true);
+    }
+
+}
